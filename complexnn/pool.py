@@ -9,10 +9,10 @@ import keras.backend                        as KB
 import keras.engine                         as KE
 import keras.layers                         as KL
 import keras.optimizers                     as KO
-import theano                               as T
-import theano.ifelse                        as TI
-import theano.tensor                        as TT
-import theano.tensor.fft                    as TTF
+#import theano                               as T
+#import theano.ifelse                        as TI
+#import theano.tensor                        as TT
+#import theano.tensor.fft                    as TTF
 import numpy                                as np
 
 

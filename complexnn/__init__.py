@@ -5,7 +5,8 @@
 # Authors: Olexa Bilaniuk
 #
 # What this module includes by default:
-import bn, conv, dense, fft, init, norm, pool
+#import bn, conv, dense, fft, init, norm, pool
+import bn, conv, dense, init, norm, pool
 
 from   .bn    import ComplexBatchNormalization as ComplexBN
 from   .conv  import (ComplexConv,
@@ -14,7 +15,7 @@ from   .conv  import (ComplexConv,
                       ComplexConv3D,
                       WeightNorm_Conv)
 from   .dense import ComplexDense
-from   .fft   import fft, ifft, fft2, ifft2, FFT, IFFT, FFT2, IFFT2
+#from   .fft   import fft, ifft, fft2, ifft2, FFT, IFFT, FFT2, IFFT2
 from   .init  import (ComplexIndependentFilters, IndependentFilters,
                       ComplexInit, SqrtInit)
 from   .norm  import LayerNormalization, ComplexLayerNorm

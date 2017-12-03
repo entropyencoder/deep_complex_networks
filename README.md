@@ -1,3 +1,17 @@
+# [Deep Complex Networks](https://arxiv.org/abs/1705.09792) on TensorFlow 
+  - Original Theano version is [here](https://github.com/ChihebTrabelsi/deep_complex_networks).
+  - FFT, IFFT are disabled.
+  - Make sure '~/.keras/keras.json' has
+      ```
+      "image_data_format": "channels_first", 
+      "backend": "tensorflow"
+      ```
+  - Dependencies
+      ```
+      pip install numpy tensorflow keras kerosene
+      ```
+  - [README.md](https://github.com/ChihebTrabelsi/deep_complex_networks/blob/master/README.md) from Theano version for more detail
+------------------------------    
 Deep Complex Networks
 =====================
 

@@ -15,6 +15,6 @@ setup(
     scripts=['scripts/run.py', 'scripts/training.py', 'musicnet/scripts/train.py',
              'musicnet/scripts/resample.py'],
     install_requires=[
-        "numpy", "scipy", "sklearn", "Theano", "keras", "intervaltree",
+        "numpy", "scipy", "sklearn", "tensorflow", "keras", "intervaltree",
         "resampy", "mimir", "kerosene"]
 )

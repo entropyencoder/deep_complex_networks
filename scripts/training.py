@@ -8,9 +8,9 @@ from   complexnn                             import ComplexBN,\
                                                     ComplexConv1D,\
                                                     ComplexConv2D,\
                                                     ComplexConv3D,\
-                                                    ComplexDense,\
-                                                    FFT,IFFT,FFT2,IFFT2,\
-                                                    SpectralPooling1D,SpectralPooling2D
+                                                    ComplexDense
+#                                                    FFT,IFFT,FFT2,IFFT2,\
+#                                                    SpectralPooling1D,SpectralPooling2D
 from complexnn import GetImag, GetReal
 import h5py                                  as     H
 import keras
@@ -29,7 +29,8 @@ from   kerosene.datasets                     import svhn2
 import logging                               as     L
 import numpy                                 as     np
 import os, pdb, socket, sys, time
-import theano                                as     T
+#import theano                                as     T
+import tensorflow                                as     T
 
 
 #
@@ -486,11 +487,12 @@ def train(d):
 	L.getLogger("entry").info("PWD:            "+os.getcwd())
 	
 	summary  = "\n"
-	summary += "Environment:\n"
-	summary += summarizeEnvvar("THEANO_FLAGS")+"\n"
-	summary += "\n"
+	#summary += "Environment:\n"
+	#summary += summarizeEnvvar("THEANO_FLAGS")+"\n"
+	#summary += "\n"
 	summary += "Software Versions:\n"
-	summary += "Theano:                  "+T.__version__+"\n"
+	#summary += "Theano:                  "+T.__version__+"\n"
+	summary += "TensorFlow:              "+T.__version__+"\n"
 	summary += "Keras:                   "+keras.__version__+"\n"
 	summary += "\n"
 	summary += "Arguments:\n"
@@ -605,7 +607,10 @@ def train(d):
 		L.getLogger("entry").info("Creating new model from scratch.")
 		np.random.seed(d.seed % 2**32)
 		model = getResnetModel(d)
-		
+
+		from keras.utils import plot_model
+		plot_model(model, to_file=d.workdir+'/model_'+d.dataset+'_'+d.model+'_.png')
+
 		# Optimizer
 		if   d.optimizer in ["sgd", "nag"]:
 			opt = SGD    (lr       = d.lr,

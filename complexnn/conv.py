@@ -13,8 +13,8 @@ from keras.layers.recurrent import Recurrent
 from keras.utils import conv_utils
 from keras.models import Model
 import numpy as np
-from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
-from .fft import fft, ifft, fft2, ifft2
+#from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
+#from .fft import fft, ifft, fft2, ifft2
 from .bn import ComplexBN as complex_normalization
 from .bn import sqrt_init
 from .init import ComplexInit, ComplexIndependentFilters
@@ -277,33 +277,33 @@ class ComplexConv(Layer):
                     2: K.conv2d,
                     3: K.conv3d}[self.rank]
 
-        # processing if the weights are assumed to be represented in the spectral domain
+        ## processing if the weights are assumed to be represented in the spectral domain
 
-        if self.spectral_parametrization:
-            if   self.rank == 1:
-                f_real = K.permute_dimensions(f_real, (2,1,0))
-                f_imag = K.permute_dimensions(f_imag, (2,1,0))
-                f      = K.concatenate([f_real, f_imag], axis=0)
-                fshape = K.shape(f)
-                f      = K.reshape(f, (fshape[0] * fshape[1], fshape[2]))
-                f      = ifft(f)
-                f      = K.reshape(f, fshape)
-                f_real = f[:fshape[0]//2]
-                f_imag = f[fshape[0]//2:]
-                f_real = K.permute_dimensions(f_real, (2,1,0))
-                f_imag = K.permute_dimensions(f_imag, (2,1,0))
-            elif self.rank == 2:
-                f_real = K.permute_dimensions(f_real, (3,2,0,1))
-                f_imag = K.permute_dimensions(f_imag, (3,2,0,1))
-                f      = K.concatenate([f_real, f_imag], axis=0)
-                fshape = K.shape(f)
-                f      = K.reshape(f, (fshape[0] * fshape[1], fshape[2], fshape[3]))
-                f      = ifft2(f)
-                f      = K.reshape(f, fshape)
-                f_real = f[:fshape[0]//2]
-                f_imag = f[fshape[0]//2:]
-                f_real = K.permute_dimensions(f_real, (2,3,1,0))
-                f_imag = K.permute_dimensions(f_imag, (2,3,1,0))
+        #if self.spectral_parametrization:
+        #    if   self.rank == 1:
+        #        f_real = K.permute_dimensions(f_real, (2,1,0))
+        #        f_imag = K.permute_dimensions(f_imag, (2,1,0))
+        #        f      = K.concatenate([f_real, f_imag], axis=0)
+        #        fshape = K.shape(f)
+        #        f      = K.reshape(f, (fshape[0] * fshape[1], fshape[2]))
+        #        f      = ifft(f)
+        #        f      = K.reshape(f, fshape)
+        #        f_real = f[:fshape[0]//2]
+        #        f_imag = f[fshape[0]//2:]
+        #        f_real = K.permute_dimensions(f_real, (2,1,0))
+        #        f_imag = K.permute_dimensions(f_imag, (2,1,0))
+        #    elif self.rank == 2:
+        #        f_real = K.permute_dimensions(f_real, (3,2,0,1))
+        #        f_imag = K.permute_dimensions(f_imag, (3,2,0,1))
+        #        f      = K.concatenate([f_real, f_imag], axis=0)
+        #        fshape = K.shape(f)
+        #        f      = K.reshape(f, (fshape[0] * fshape[1], fshape[2], fshape[3]))
+        #        f      = ifft2(f)
+        #        f      = K.reshape(f, fshape)
+        #        f_real = f[:fshape[0]//2]
+        #        f_imag = f[fshape[0]//2:]
+        #        f_real = K.permute_dimensions(f_real, (2,3,1,0))
+        #        f_imag = K.permute_dimensions(f_imag, (2,3,1,0))
 
         # In case of weight normalization, real and imaginary weights are normalized
 
