@@ -608,8 +608,8 @@ def train(d):
 		np.random.seed(d.seed % 2**32)
 		model = getResnetModel(d)
 
-		from keras.utils import plot_model
-		plot_model(model, to_file=d.workdir+'/model_'+d.dataset+'_'+d.model+'_.png')
+		#from keras.utils import plot_model
+		#plot_model(model, to_file=d.workdir+'/model_'+d.dataset+'_'+d.model+'_.png')
 
 		# Optimizer
 		if   d.optimizer in ["sgd", "nag"]:
