@@ -10,7 +10,7 @@
       ```
       pip install numpy tensorflow keras kerosene
       ```
-  - [README.md](https://github.com/ChihebTrabelsi/deep_complex_networks/blob/master/README.md) from Theano version for more detail
+  - [README.md](https://github.com/ChihebTrabelsi/deep_complex_networks/blob/master/README.md) from Theano version for more detail follows.
 ------------------------------    
 Deep Complex Networks
 =====================
