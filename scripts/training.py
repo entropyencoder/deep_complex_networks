@@ -15,7 +15,7 @@ from complexnn import GetImag, GetReal
 import h5py                                  as     H
 import keras
 from   keras.callbacks                       import Callback, ModelCheckpoint, LearningRateScheduler
-from   keras.datasets                        import cifar10, cifar100
+from   keras.datasets                        import cifar10, cifar100, mnist, fashion_mnist
 from   keras.initializers                    import Orthogonal
 from   keras.layers                          import Layer, AveragePooling2D, AveragePooling3D, add, Add, concatenate, Concatenate, Input, Flatten, Dense, Convolution2D, BatchNormalization, Activation, Reshape, ConvLSTM2D, Conv2D
 from   keras.models                          import Model, load_model, save_model
@@ -151,7 +151,10 @@ def getResnetModel(d):
 	activation    = d.act
 	advanced_act  = d.aact
 	drop_prob     = d.dropout
-	inputShape    = (3, 32, 32) if K.image_dim_ordering() == "th" else (32, 32, 3)
+	if "mnist" in dataset:
+		inputShape    = (1, 28, 28) if K.image_dim_ordering() == "th" else (28, 28, 1)
+	else:
+		inputShape    = (3, 32, 32) if K.image_dim_ordering() == "th" else (32, 32, 3)
 	channelAxis   = 1 if K.image_data_format() == 'channels_first' else -1
 	filsize       = (3, 3)
 	convArgs      = {
@@ -234,9 +237,15 @@ def getResnetModel(d):
 	
 	if d.spectral_pool_scheme == "nodownsample":
 		O = applySpectralPooling(O, d)
-		O = AveragePooling2D(pool_size=(32, 32))(O)
+		if "mnist" in dataset:
+			O = AveragePooling2D(pool_size=(28, 28))(O)
+		else:
+			O = AveragePooling2D(pool_size=(32, 32))(O)
 	else:
-		O = AveragePooling2D(pool_size=(8,  8))(O)
+		if "mnist" in dataset:
+			O = AveragePooling2D(pool_size=(7, 7))(O)
+		else:
+			O = AveragePooling2D(pool_size=(8, 8))(O)
 	
 	#
 	# Flatten
@@ -253,6 +262,10 @@ def getResnetModel(d):
 	elif dataset == 'cifar100':
 		O = Dense(100, activation='softmax', kernel_regularizer=l2(0.0001))(O)
 	elif dataset == 'svhn':
+		O = Dense(10,  activation='softmax', kernel_regularizer=l2(0.0001))(O)
+	elif dataset == 'mnist':
+		O = Dense(10,  activation='softmax', kernel_regularizer=l2(0.0001))(O)
+	elif dataset == 'fashion_mnist':
 		O = Dense(10,  activation='softmax', kernel_regularizer=l2(0.0001))(O)
 	else:
 		raise ValueError("Unknown dataset "+d.dataset)
@@ -539,7 +552,15 @@ def train(d):
 		y_train                              = y_train - 1
 		y_test                               = y_test  - 1
 		n_train                              = 65000
-	
+	elif d.dataset == 'mnist':
+		(X_train, y_train), (X_test, y_test) = mnist.load_data()
+		nb_classes                           = 10
+		n_train                              = 55000
+	elif d.dataset == 'fashion_mnist':
+		(X_train, y_train), (X_test, y_test) = fashion_mnist.load_data()
+		nb_classes                           = 10
+		n_train                              = 55000
+
 	#
 	# Compute and Shuffle Training/Validation/Test Split
 	#
@@ -608,8 +629,8 @@ def train(d):
 		np.random.seed(d.seed % 2**32)
 		model = getResnetModel(d)
 
-		#from keras.utils import plot_model
-		#plot_model(model, to_file=d.workdir+'/model_'+d.dataset+'_'+d.model+'_.png')
+		from keras.utils import plot_model
+		plot_model(model, to_file=d.workdir+'/model_'+d.dataset+'_'+d.model+'.png')
 
 		# Optimizer
 		if   d.optimizer in ["sgd", "nag"]:

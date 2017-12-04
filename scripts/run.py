@@ -92,7 +92,7 @@ class Train(Subcommand):
 		    choices=["real", "complex"],
 		    help="Model Selection.")
 		argp.add_argument("--dataset",              default="cifar10",          type=str,
-		    choices=["cifar10", "cifar100", "svhn"],
+		    choices=["cifar10", "cifar100", "svhn", "mnist", "fashion_mnist"],
 		    help="Dataset Selection.")
 		argp.add_argument("--dropout",              default=0,                  type=float,
 		    help="Dropout probability.")
