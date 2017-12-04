@@ -702,7 +702,13 @@ def train(d):
 	saveLastCb     = SaveLastModel(d.workdir, period=10)
 	saveBestCb     = SaveBestModel(d.workdir)
 	trainValHistCb = TrainValHistory()
-	
+	tensorBoardCb  = None
+	if 'tensorflow' == K.backend():
+		tensorBoardCb  = keras.callbacks.TensorBoard(
+			log_dir=d.workdir+'/tb_logs', histogram_freq=1, batch_size=d.batch_size,
+			write_graph=True, write_grads=True, write_images=True,
+			embeddings_freq=0, embeddings_layer_names=None, embeddings_metadata=None)
+
 	callbacks  = []
 	callbacks += [newLineCb]
 	if d.schedule == "default":
@@ -711,7 +717,8 @@ def train(d):
 	callbacks += [saveLastCb]
 	callbacks += [saveBestCb]
 	callbacks += [trainValHistCb]
-	
+	callbacks += [tensorBoardCb]
+
 	#
 	# Create training data generator
 	#
