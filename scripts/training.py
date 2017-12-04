@@ -556,10 +556,14 @@ def train(d):
 		(X_train, y_train), (X_test, y_test) = mnist.load_data()
 		nb_classes                           = 10
 		n_train                              = 55000
+		X_train = np.expand_dims(X_train, axis=1)
+		X_test  = np.expand_dims(X_test,  axis=1)
 	elif d.dataset == 'fashion_mnist':
 		(X_train, y_train), (X_test, y_test) = fashion_mnist.load_data()
 		nb_classes                           = 10
 		n_train                              = 55000
+		X_train = np.expand_dims(X_train, axis=1)
+		X_test  = np.expand_dims(X_test,  axis=1)
 
 	#
 	# Compute and Shuffle Training/Validation/Test Split
