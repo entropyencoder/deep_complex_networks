@@ -102,7 +102,8 @@ def getResidualBlock(I, filter_size, featmaps, stage, block, shortcut, convArgs,
 			O = Conv2D(nb_fmaps1, filter_size, name=conv_name_base+'2a', **convArgs)(O)
 		elif d.model == "real_dws":
 			O = SeparableConv2D(nb_fmaps1, filter_size, name=conv_name_base + '2a', **convArgs)(O)
-		elif d.model == "real_group":
+		# elif d.model == "real_group":
+		elif "real_group" in d.model:
 			O_g0 = Lambda(lambda O: O[:,:(O.shape[1]//2),:,:])(O)
 			O_g1 = Lambda(lambda O: O[:,(O.shape[1]//2):,:,:])(O)
 			O_g0 = Conv2D(nb_fmaps1 // 2, filter_size, name=conv_name_base + '2a_g0', **convArgs)(O_g0)
@@ -112,6 +113,8 @@ def getResidualBlock(I, filter_size, featmaps, stage, block, shortcut, convArgs,
 			O_g10 = Lambda(lambda O_g1: O_g1[:,:(O_g1.shape[1]//2),:,:])(O_g1)
 			O_g11 = Lambda(lambda O_g1: O_g1[:,(O_g1.shape[1]//2):,:,:])(O_g1)
 			O = Concatenate(axis=1)([O_g00, O_g11, O_g01, O_g10])	# This ordering allows permutation of odd-numbered outputs (O_g0, O_g1).
+			if d.model == "real_group_pwc":
+				O = Conv2D(nb_fmaps1, (1, 1), name=conv_name_base + '2a_pwc', **convArgs)(O)
 		elif d.model == "complex":
 			O = ComplexConv2D(nb_fmaps1, filter_size, name=conv_name_base+'2a', **convArgs)(O)
 		elif d.model == "complex_concat":
@@ -127,7 +130,8 @@ def getResidualBlock(I, filter_size, featmaps, stage, block, shortcut, convArgs,
 			O = Conv2D(nb_fmaps1, filter_size, name=conv_name_base+'2a', strides=(2, 2), **convArgs)(O)
 		elif d.model == "real_dws":
 			O = SeparableConv2D(nb_fmaps1, filter_size, name=conv_name_base + '2a', strides=(2, 2), **convArgs)(O)
-		elif d.model == "real_group":
+		# elif d.model == "real_group":
+		elif "real_group" in d.model:
 			O_g0 = Lambda(lambda O: O[:,:(O.shape[1]//2),:,:])(O)
 			O_g1 = Lambda(lambda O: O[:,(O.shape[1]//2):,:,:])(O)
 			O_g0 = Conv2D(nb_fmaps1 // 2, filter_size, name=conv_name_base + '2a_g0', strides=(2, 2), **convArgs)(O_g0)
@@ -137,6 +141,8 @@ def getResidualBlock(I, filter_size, featmaps, stage, block, shortcut, convArgs,
 			O_g10 = Lambda(lambda O_g1: O_g1[:,:(O_g1.shape[1]//2),:,:])(O_g1)
 			O_g11 = Lambda(lambda O_g1: O_g1[:,(O_g1.shape[1]//2):,:,:])(O_g1)
 			O = Concatenate(axis=1)([O_g00, O_g11, O_g01, O_g10])
+			if d.model == "real_group_pwc":
+				O = Conv2D(nb_fmaps1, (1, 1), name=conv_name_base + '2a_pwc', **convArgs)(O)
 		elif d.model == "complex":
 			O = ComplexConv2D(nb_fmaps1, filter_size, name=conv_name_base+'2a', strides=(2, 2), **convArgs)(O)
 		elif d.model == "complex_concat":
@@ -154,7 +160,8 @@ def getResidualBlock(I, filter_size, featmaps, stage, block, shortcut, convArgs,
 		O = BatchNormalization(name=bn_name_base + '_2b', **bnArgs)(O)
 		O = Activation(activation)(O)
 		O = SeparableConv2D(nb_fmaps2, filter_size, name=conv_name_base + '2b', **convArgs)(O)
-	elif d.model == "real_group":
+	# elif d.model == "real_group":
+	elif "real_group" in d.model:
 		O = BatchNormalization(name=bn_name_base + '_2b', **bnArgs)(O)
 		O = Activation(activation)(O)
 		O_g0 = Lambda(lambda O: O[:, :(O.shape[1] // 2), :, :])(O)
@@ -166,6 +173,8 @@ def getResidualBlock(I, filter_size, featmaps, stage, block, shortcut, convArgs,
 		O_g10 = Lambda(lambda O_g1: O_g1[:, :(O_g1.shape[1] // 2), :, :])(O_g1)
 		O_g11 = Lambda(lambda O_g1: O_g1[:, (O_g1.shape[1] // 2):, :, :])(O_g1)
 		O = Concatenate(axis=1)([O_g00, O_g11, O_g01, O_g10])
+		if d.model == "real_group_pwc":
+			O = Conv2D(nb_fmaps2, (1, 1), name=conv_name_base + '2b_pwc', **convArgs)(O)
 	elif d.model == "complex":
 		O = ComplexBN(name=bn_name_base+'_2b', **bnArgs)(O)
 		O = Activation(activation)(O)
@@ -197,7 +206,8 @@ def getResidualBlock(I, filter_size, featmaps, stage, block, shortcut, convArgs,
 					   (1, 1),
 					   **convArgs)(I)
 			O = Concatenate(channel_axis)([X, O])
-		elif d.model == "real_group":
+		# elif d.model == "real_group":
+		elif "real_group" in d.model:
 			I_g0 = Lambda(lambda I: I[:, :(I.shape[1] // 2), :, :])(I)
 			I_g1 = Lambda(lambda I: I[:, (I.shape[1] // 2):, :, :])(I)
 			X_g0 = Conv2D(nb_fmaps2 // 2, (1, 1),
@@ -216,6 +226,8 @@ def getResidualBlock(I, filter_size, featmaps, stage, block, shortcut, convArgs,
 			X_g11 = Lambda(lambda X_g1: X_g1[:, (X_g1.shape[1] // 2):, :, :])(X_g1)
 			X = Concatenate(axis=1)([X_g00, X_g11, X_g01, X_g10])
 			O = Concatenate(channel_axis)([X, O])
+			if d.model == "real_group_pwc":
+				O = Conv2D(nb_fmaps2, (1, 1), name=conv_name_base + '1_pwc', **convArgs)(O)
 		elif d.model == "complex":
 			X = ComplexConv2D(nb_fmaps2, (1, 1),
 			                  name    = conv_name_base+'1',
@@ -306,7 +318,8 @@ def getResnetModel(d):
 	elif d.model == "real_dws":
 		O = SeparableConv2D(sf, filsize, name='conv1', **convArgs)(O)
 		O = BatchNormalization(name="bn_conv1_2a", **bnArgs)(O)
-	elif d.model == "real_group":
+	# elif d.model == "real_group":
+	elif "real_group" in d.model:
 		O_g0 = Lambda(lambda O: O[:, :(O.shape[1] // 2), :, :])(O)
 		O_g1 = Lambda(lambda O: O[:, (O.shape[1] // 2):, :, :])(O)
 		O_g0 = Conv2D(sf // 2, filsize, name='conv1_g0', **convArgs)(O_g0)
@@ -316,6 +329,8 @@ def getResnetModel(d):
 		O_g10 = Lambda(lambda O_g1: O_g1[:, :(O_g1.shape[1] // 2), :, :])(O_g1)
 		O_g11 = Lambda(lambda O_g1: O_g1[:, (O_g1.shape[1] // 2):, :, :])(O_g1)
 		O = Concatenate(axis=1)([O_g00, O_g11, O_g01, O_g10])
+		if d.model == "real_group_pwc":
+			O = Conv2D(sf, (1, 1), name='conv1_pwc', **convArgs)(O)
 		O = BatchNormalization(name="bn_conv1_2a", **bnArgs)(O)
 	elif d.model == "complex":
 		O = ComplexConv2D(sf, filsize, name='conv1', **convArgs)(O)
