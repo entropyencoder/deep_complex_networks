@@ -107,7 +107,11 @@ def getResidualBlock(I, filter_size, featmaps, stage, block, shortcut, convArgs,
 			O_g1 = Lambda(lambda O: O[:,(O.shape[1]//2):,:,:])(O)
 			O_g0 = Conv2D(nb_fmaps1 // 2, filter_size, name=conv_name_base + '2a_g0', **convArgs)(O_g0)
 			O_g1 = Conv2D(nb_fmaps1 // 2, filter_size, name=conv_name_base + '2a_g1', **convArgs)(O_g1)
-			O = Concatenate(axis=1)([O_g0, O_g1])
+			O_g00 = Lambda(lambda O_g0: O_g0[:,:(O_g0.shape[1]//2),:,:])(O_g0)
+			O_g01 = Lambda(lambda O_g0: O_g0[:,(O_g0.shape[1]//2):,:,:])(O_g0)
+			O_g10 = Lambda(lambda O_g1: O_g1[:,:(O_g1.shape[1]//2),:,:])(O_g1)
+			O_g11 = Lambda(lambda O_g1: O_g1[:,(O_g1.shape[1]//2):,:,:])(O_g1)
+			O = Concatenate(axis=1)([O_g00, O_g11, O_g01, O_g10])	# This ordering allows permutation of odd-numbered outputs (O_g0, O_g1).
 		elif d.model == "complex":
 			O = ComplexConv2D(nb_fmaps1, filter_size, name=conv_name_base+'2a', **convArgs)(O)
 		elif d.model == "complex_concat":
@@ -128,7 +132,11 @@ def getResidualBlock(I, filter_size, featmaps, stage, block, shortcut, convArgs,
 			O_g1 = Lambda(lambda O: O[:,(O.shape[1]//2):,:,:])(O)
 			O_g0 = Conv2D(nb_fmaps1 // 2, filter_size, name=conv_name_base + '2a_g0', strides=(2, 2), **convArgs)(O_g0)
 			O_g1 = Conv2D(nb_fmaps1 // 2, filter_size, name=conv_name_base + '2a_g1', strides=(2, 2), **convArgs)(O_g1)
-			O = Concatenate(axis=1)([O_g0, O_g1])
+			O_g00 = Lambda(lambda O_g0: O_g0[:,:(O_g0.shape[1]//2),:,:])(O_g0)
+			O_g01 = Lambda(lambda O_g0: O_g0[:,(O_g0.shape[1]//2):,:,:])(O_g0)
+			O_g10 = Lambda(lambda O_g1: O_g1[:,:(O_g1.shape[1]//2),:,:])(O_g1)
+			O_g11 = Lambda(lambda O_g1: O_g1[:,(O_g1.shape[1]//2):,:,:])(O_g1)
+			O = Concatenate(axis=1)([O_g00, O_g11, O_g01, O_g10])
 		elif d.model == "complex":
 			O = ComplexConv2D(nb_fmaps1, filter_size, name=conv_name_base+'2a', strides=(2, 2), **convArgs)(O)
 		elif d.model == "complex_concat":
@@ -153,7 +161,11 @@ def getResidualBlock(I, filter_size, featmaps, stage, block, shortcut, convArgs,
 		O_g1 = Lambda(lambda O: O[:, (O.shape[1] // 2):, :, :])(O)
 		O_g0 = Conv2D(nb_fmaps2 // 2, filter_size, name=conv_name_base + '2b_g0', **convArgs)(O_g0)
 		O_g1 = Conv2D(nb_fmaps2 // 2, filter_size, name=conv_name_base + '2b_g1', **convArgs)(O_g1)
-		O = Concatenate(axis=1)([O_g0, O_g1])
+		O_g00 = Lambda(lambda O_g0: O_g0[:, :(O_g0.shape[1] // 2), :, :])(O_g0)
+		O_g01 = Lambda(lambda O_g0: O_g0[:, (O_g0.shape[1] // 2):, :, :])(O_g0)
+		O_g10 = Lambda(lambda O_g1: O_g1[:, :(O_g1.shape[1] // 2), :, :])(O_g1)
+		O_g11 = Lambda(lambda O_g1: O_g1[:, (O_g1.shape[1] // 2):, :, :])(O_g1)
+		O = Concatenate(axis=1)([O_g00, O_g11, O_g01, O_g10])
 	elif d.model == "complex":
 		O = ComplexBN(name=bn_name_base+'_2b', **bnArgs)(O)
 		O = Activation(activation)(O)
@@ -198,7 +210,11 @@ def getResidualBlock(I, filter_size, featmaps, stage, block, shortcut, convArgs,
 					   strides=(2, 2) if d.spectral_pool_scheme != "nodownsample" else
 					   (1, 1),
 					   **convArgs)(I_g1)
-			X = Concatenate(axis=1)([X_g0, X_g1])
+			X_g00 = Lambda(lambda X_g0: X_g0[:, :(X_g0.shape[1] // 2), :, :])(X_g0)
+			X_g01 = Lambda(lambda X_g0: X_g0[:, (X_g0.shape[1] // 2):, :, :])(X_g0)
+			X_g10 = Lambda(lambda X_g1: X_g1[:, :(X_g1.shape[1] // 2), :, :])(X_g1)
+			X_g11 = Lambda(lambda X_g1: X_g1[:, (X_g1.shape[1] // 2):, :, :])(X_g1)
+			X = Concatenate(axis=1)([X_g00, X_g11, X_g01, X_g10])
 			O = Concatenate(channel_axis)([X, O])
 		elif d.model == "complex":
 			X = ComplexConv2D(nb_fmaps2, (1, 1),
@@ -295,7 +311,11 @@ def getResnetModel(d):
 		O_g1 = Lambda(lambda O: O[:, (O.shape[1] // 2):, :, :])(O)
 		O_g0 = Conv2D(sf // 2, filsize, name='conv1_g0', **convArgs)(O_g0)
 		O_g1 = Conv2D(sf // 2, filsize, name='conv1_g1', **convArgs)(O_g1)
-		O = Concatenate(axis=1)([O_g0, O_g1])
+		O_g00 = Lambda(lambda O_g0: O_g0[:, :(O_g0.shape[1] // 2), :, :])(O_g0)
+		O_g01 = Lambda(lambda O_g0: O_g0[:, (O_g0.shape[1] // 2):, :, :])(O_g0)
+		O_g10 = Lambda(lambda O_g1: O_g1[:, :(O_g1.shape[1] // 2), :, :])(O_g1)
+		O_g11 = Lambda(lambda O_g1: O_g1[:, (O_g1.shape[1] // 2):, :, :])(O_g1)
+		O = Concatenate(axis=1)([O_g00, O_g11, O_g01, O_g10])
 		O = BatchNormalization(name="bn_conv1_2a", **bnArgs)(O)
 	elif d.model == "complex":
 		O = ComplexConv2D(sf, filsize, name='conv1', **convArgs)(O)
