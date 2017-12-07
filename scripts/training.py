@@ -8,6 +8,7 @@ from   complexnn                             import ComplexBN,\
                                                     ComplexConv1D,\
                                                     ComplexConv2D,\
                                                     ComplexConv3D,\
+                                                    ComplexConvConcat2D,\
                                                     ComplexDense
 #                                                    FFT,IFFT,FFT2,IFFT2,\
 #                                                    SpectralPooling1D,SpectralPooling2D
@@ -31,6 +32,8 @@ import numpy                                 as     np
 import os, pdb, socket, sys, time
 #import theano                                as     T
 import tensorflow                                as     T
+from keras.layers import SeparableConv2D
+from keras.layers import Lambda
 
 # Disallow eager use of GPU memory
 if 'tensorflow' == K.backend():
@@ -85,34 +88,84 @@ def getResidualBlock(I, filter_size, featmaps, stage, block, shortcut, convArgs,
 		channel_axis = -1
 	
 	
-	if   d.model == "real":
+	# if   d.model == "real":
+	if "real" in d.model:
 		O = BatchNormalization(name=bn_name_base+'_2a', **bnArgs)(I)
-	elif d.model == "complex":
+	# elif d.model == "complex":
+	elif "complex" in d.model:
 		O = ComplexBN(name=bn_name_base+'_2a', **bnArgs)(I)
+
 	O = Activation(activation)(O)
 	
 	if shortcut == 'regular' or d.spectral_pool_scheme == "nodownsample":
 		if   d.model == "real":
 			O = Conv2D(nb_fmaps1, filter_size, name=conv_name_base+'2a', **convArgs)(O)
+		elif d.model == "real_dws":
+			O = SeparableConv2D(nb_fmaps1, filter_size, name=conv_name_base + '2a', **convArgs)(O)
+		elif d.model == "real_group":
+			O_g0 = Lambda(lambda O: O[:,:(O.shape[1]//2),:,:])(O)
+			O_g1 = Lambda(lambda O: O[:,(O.shape[1]//2):,:,:])(O)
+			O_g0 = Conv2D(nb_fmaps1 // 2, filter_size, name=conv_name_base + '2a_g0', **convArgs)(O_g0)
+			O_g1 = Conv2D(nb_fmaps1 // 2, filter_size, name=conv_name_base + '2a_g1', **convArgs)(O_g1)
+			O = Concatenate(axis=1)([O_g0, O_g1])
 		elif d.model == "complex":
 			O = ComplexConv2D(nb_fmaps1, filter_size, name=conv_name_base+'2a', **convArgs)(O)
+		elif d.model == "complex_concat":
+			O = ComplexConvConcat2D(nb_fmaps1 // 2, filter_size, name=conv_name_base + '2a', **convArgs)(O)
+		else:
+			print("Error: unknown model type")
+			exit(-1)
 	elif shortcut == 'projection':
 		if d.spectral_pool_scheme == "proj":
 			O = applySpectralPooling(O, d)
+
 		if   d.model == "real":
 			O = Conv2D(nb_fmaps1, filter_size, name=conv_name_base+'2a', strides=(2, 2), **convArgs)(O)
+		elif d.model == "real_dws":
+			O = SeparableConv2D(nb_fmaps1, filter_size, name=conv_name_base + '2a', strides=(2, 2), **convArgs)(O)
+		elif d.model == "real_group":
+			O_g0 = Lambda(lambda O: O[:,:(O.shape[1]//2),:,:])(O)
+			O_g1 = Lambda(lambda O: O[:,(O.shape[1]//2):,:,:])(O)
+			O_g0 = Conv2D(nb_fmaps1 // 2, filter_size, name=conv_name_base + '2a_g0', strides=(2, 2), **convArgs)(O_g0)
+			O_g1 = Conv2D(nb_fmaps1 // 2, filter_size, name=conv_name_base + '2a_g1', strides=(2, 2), **convArgs)(O_g1)
+			O = Concatenate(axis=1)([O_g0, O_g1])
 		elif d.model == "complex":
 			O = ComplexConv2D(nb_fmaps1, filter_size, name=conv_name_base+'2a', strides=(2, 2), **convArgs)(O)
-	
+		elif d.model == "complex_concat":
+			O = ComplexConvConcat2D(nb_fmaps1 // 2, filter_size, name=conv_name_base+'2a', strides=(2, 2), **convArgs)(O)
+		else:
+			print("Error: unknown model type")
+			exit(-1)
+
+
 	if   d.model == "real":
 		O = BatchNormalization(name=bn_name_base+'_2b', **bnArgs)(O)
 		O = Activation(activation)(O)
 		O = Conv2D(nb_fmaps2, filter_size, name=conv_name_base+'2b', **convArgs)(O)
+	elif d.model == "real_dws":
+		O = BatchNormalization(name=bn_name_base + '_2b', **bnArgs)(O)
+		O = Activation(activation)(O)
+		O = SeparableConv2D(nb_fmaps2, filter_size, name=conv_name_base + '2b', **convArgs)(O)
+	elif d.model == "real_group":
+		O = BatchNormalization(name=bn_name_base + '_2b', **bnArgs)(O)
+		O = Activation(activation)(O)
+		O_g0 = Lambda(lambda O: O[:, :(O.shape[1] // 2), :, :])(O)
+		O_g1 = Lambda(lambda O: O[:, (O.shape[1] // 2):, :, :])(O)
+		O_g0 = Conv2D(nb_fmaps2 // 2, filter_size, name=conv_name_base + '2b_g0', **convArgs)(O_g0)
+		O_g1 = Conv2D(nb_fmaps2 // 2, filter_size, name=conv_name_base + '2b_g1', **convArgs)(O_g1)
+		O = Concatenate(axis=1)([O_g0, O_g1])
 	elif d.model == "complex":
 		O = ComplexBN(name=bn_name_base+'_2b', **bnArgs)(O)
 		O = Activation(activation)(O)
 		O = ComplexConv2D(nb_fmaps2, filter_size, name=conv_name_base+'2b', **convArgs)(O)
-	
+	elif d.model == "complex_concat":
+		O = ComplexBN(name=bn_name_base+'_2b', **bnArgs)(O)
+		O = Activation(activation)(O)
+		O = ComplexConvConcat2D(nb_fmaps2 // 2, filter_size, name=conv_name_base+'2b', **convArgs)(O)
+	else:
+		print("Error: unknown model type")
+		exit(-1)
+
 	if   shortcut == 'regular':
 		O = Add()([O, I])
 	elif shortcut == 'projection':
@@ -125,17 +178,50 @@ def getResidualBlock(I, filter_size, featmaps, stage, block, shortcut, convArgs,
 			                     (1, 1),
 			           **convArgs)(I)
 			O      = Concatenate(channel_axis)([X, O])
+		elif d.model == "real_dws":
+			X = SeparableConv2D(nb_fmaps2, (1, 1),
+					   name=conv_name_base + '1',
+					   strides=(2, 2) if d.spectral_pool_scheme != "nodownsample" else
+					   (1, 1),
+					   **convArgs)(I)
+			O = Concatenate(channel_axis)([X, O])
+		elif d.model == "real_group":
+			I_g0 = Lambda(lambda I: I[:, :(I.shape[1] // 2), :, :])(I)
+			I_g1 = Lambda(lambda I: I[:, (I.shape[1] // 2):, :, :])(I)
+			X_g0 = Conv2D(nb_fmaps2 // 2, (1, 1),
+					   name=conv_name_base + '1_g0',
+					   strides=(2, 2) if d.spectral_pool_scheme != "nodownsample" else
+					   (1, 1),
+					   **convArgs)(I_g0)
+			X_g1 = Conv2D(nb_fmaps2 // 2, (1, 1),
+					   name=conv_name_base + '1_g1',
+					   strides=(2, 2) if d.spectral_pool_scheme != "nodownsample" else
+					   (1, 1),
+					   **convArgs)(I_g1)
+			X = Concatenate(axis=1)([X_g0, X_g1])
+			O = Concatenate(channel_axis)([X, O])
 		elif d.model == "complex":
 			X = ComplexConv2D(nb_fmaps2, (1, 1),
 			                  name    = conv_name_base+'1',
 			                  strides = (2, 2) if d.spectral_pool_scheme != "nodownsample" else
 			                            (1, 1),
 			                  **convArgs)(I)
-			
+			O_real = Concatenate(channel_axis)([GetReal()(X), GetReal()(O)])
+			O_imag = Concatenate(channel_axis)([GetImag()(X), GetImag()(O)])
+			O = Concatenate(1)([O_real, O_imag])
+		elif d.model == "complex_concat":
+			X = ComplexConvConcat2D(nb_fmaps2 // 2, (1, 1),
+							  name=conv_name_base + '1',
+							  strides=(2, 2) if d.spectral_pool_scheme != "nodownsample" else
+							  (1, 1),
+							  **convArgs)(I)
 			O_real = Concatenate(channel_axis)([GetReal()(X), GetReal()(O)])
 			O_imag = Concatenate(channel_axis)([GetImag()(X), GetImag()(O)])
 			O      = Concatenate(      1     )([O_real,     O_imag])
-	
+		else:
+			print("Error: unknown model type")
+			exit(-1)
+
 	return O
 
 def applySpectralPooling(x, d):
@@ -176,10 +262,12 @@ def getResnetModel(d):
 		"epsilon":                  1e-04
 	}
 	
-	if   d.model == "real":
+	# if   d.model == "real":
+	if "real" in d.model:
 		sf *= 2
 		convArgs.update({"kernel_initializer": Orthogonal(float(np.sqrt(2)))})
-	elif d.model == "complex":
+	# elif d.model == "complex":
+	elif "complex" in d.model:
 		convArgs.update({"spectral_parametrization": d.spectral_param,
 						 "kernel_initializer": d.comp_init})
 	
@@ -199,9 +287,26 @@ def getResnetModel(d):
 	if d.model == "real":
 		O = Conv2D(sf, filsize, name='conv1', **convArgs)(O)
 		O = BatchNormalization(name="bn_conv1_2a", **bnArgs)(O)
-	else:
+	elif d.model == "real_dws":
+		O = SeparableConv2D(sf, filsize, name='conv1', **convArgs)(O)
+		O = BatchNormalization(name="bn_conv1_2a", **bnArgs)(O)
+	elif d.model == "real_group":
+		O_g0 = Lambda(lambda O: O[:, :(O.shape[1] // 2), :, :])(O)
+		O_g1 = Lambda(lambda O: O[:, (O.shape[1] // 2):, :, :])(O)
+		O_g0 = Conv2D(sf // 2, filsize, name='conv1_g0', **convArgs)(O_g0)
+		O_g1 = Conv2D(sf // 2, filsize, name='conv1_g1', **convArgs)(O_g1)
+		O = Concatenate(axis=1)([O_g0, O_g1])
+		O = BatchNormalization(name="bn_conv1_2a", **bnArgs)(O)
+	elif d.model == "complex":
 		O = ComplexConv2D(sf, filsize, name='conv1', **convArgs)(O)
 		O = ComplexBN(name="bn_conv1_2a", **bnArgs)(O)
+	elif d.model == "complex_concat":
+		O = ComplexConvConcat2D(sf // 2, filsize, name='conv1', **convArgs)(O)
+		O = ComplexBN(name="bn_conv1_2a", **bnArgs)(O)
+	else:
+		print("Error: unknown model type")
+		exit(-1)
+
 	O = Activation(activation)(O)
 	
 	#
@@ -281,8 +386,68 @@ def getResnetModel(d):
 	# Return the model
 	return Model(I, O)
 
+def getSimpleConvnetModel(d):
+	n = d.num_blocks
+	sf = d.start_filter
+	dataset = d.dataset
+	activation = d.act
+	advanced_act = d.aact
+	drop_prob = d.dropout
+	if "mnist" in dataset:
+		inputShape = (1, 28, 28) if K.image_dim_ordering() == "th" else (28, 28, 1)
+	else:
+		inputShape = (3, 32, 32) if K.image_dim_ordering() == "th" else (32, 32, 3)
+	channelAxis = 1 if K.image_data_format() == 'channels_first' else -1
+	filsize = (3, 3)
+	convArgs = {
+		"padding": "same",
+		"use_bias": False,
+		"kernel_regularizer": l2(0.0001),
+	}
+	bnArgs = {
+		"axis": channelAxis,
+		"momentum": 0.9,
+		"epsilon": 1e-04
+	}
 
+	if d.model == "real":
+		sf *= 2
+		convArgs.update({"kernel_initializer": Orthogonal(float(np.sqrt(2)))})
+	elif d.model == "complex":
+		convArgs.update({"spectral_parametrization": d.spectral_param,
+						 "kernel_initializer": d.comp_init})
 
+	from keras.models import Sequential
+	from keras.layers import Dense, Dropout, Flatten
+	from keras.layers import Conv2D, MaxPooling2D
+	from keras.layers.normalization import BatchNormalization
+
+	batch_size = 256
+	num_classes = 10
+	epochs = 50
+
+	# input image dimensions
+	img_rows, img_cols = 28, 28
+
+	I = Input(shape=inputShape)
+	O = Conv2D(32, kernel_size=(3, 3),
+			   activation='relu',
+			   kernel_initializer='he_normal',
+			   input_shape=inputShape)(I)
+	O = MaxPooling2D(pool_size=(2, 2))(O)
+	O = Dropout(0.25)(O)
+	O = Conv2D(64, (3, 3), activation='relu')(O)
+	O = MaxPooling2D(pool_size=(2, 2))(O)
+	O = Dropout(0.25)(O)
+	O = Conv2D(128, (3, 3), activation='relu')(O)
+	O = Dropout(0.4)(O)
+	O = Flatten()(O)
+	O = Dense(128, activation='relu')(O)
+	O = Dropout(0.3)(O)
+	O = Dense(num_classes, activation='softmax')(O)
+
+	# Return the model
+	return Model(I, O)
 
 #
 # Callbacks:
@@ -640,6 +805,7 @@ def train(d):
 		L.getLogger("entry").info("Creating new model from scratch.")
 		np.random.seed(d.seed % 2**32)
 		model = getResnetModel(d)
+		# model = getSimpleConvnetModel(d)
 
 		from keras.utils import plot_model
 		plot_model(model, to_file=d.workdir+'/model_'+d.dataset+'_'+d.model+'.png')
@@ -667,6 +833,7 @@ def train(d):
 		# Compile the model with that optimizer.
 		L.getLogger("entry").info("Compilation Started.")
 		model.compile(opt, 'categorical_crossentropy', metrics=['accuracy'])
+		model.summary()
 	
 	#
 	# Precompile several backend functions
@@ -702,12 +869,7 @@ def train(d):
 	saveLastCb     = SaveLastModel(d.workdir, period=10)
 	saveBestCb     = SaveBestModel(d.workdir)
 	trainValHistCb = TrainValHistory()
-	tensorBoardCb  = None
-	if 'tensorflow' == K.backend():
-		tensorBoardCb  = keras.callbacks.TensorBoard(
-			log_dir=d.workdir+'/tb_logs', histogram_freq=1, batch_size=d.batch_size,
-			write_graph=True, write_grads=True, write_images=True,
-			embeddings_freq=0, embeddings_layer_names=None, embeddings_metadata=None)
+
 
 	callbacks  = []
 	callbacks += [newLineCb]
@@ -717,12 +879,18 @@ def train(d):
 	callbacks += [saveLastCb]
 	callbacks += [saveBestCb]
 	callbacks += [trainValHistCb]
-	callbacks += [tensorBoardCb]
 
+	# tensorBoardCb  = None
+	# if 'tensorflow' == K.backend():
+	# 	tensorBoardCb  = keras.callbacks.TensorBoard(
+	# 		log_dir=d.workdir+'/tb_logs', histogram_freq=1, batch_size=d.batch_size,
+	# 		write_graph=True, write_grads=True, write_images=True,
+	# 		embeddings_freq=0, embeddings_layer_names=None, embeddings_metadata=None)
 	#
 	# Create training data generator
 	#
-	
+	# callbacks += [tensorBoardCb]
+
 	datagen         = ImageDataGenerator(height_shift_range = 0.125,
 	                                     width_shift_range  = 0.125,
 	                                     horizontal_flip    = True)

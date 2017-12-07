@@ -89,7 +89,7 @@ class Train(Subcommand):
 		argp.add_argument("--summary",     action="store_true",
 		    help="""Print a summary of the network.""")
 		argp.add_argument("--model",                default="complex",          type=str,
-		    choices=["real", "complex"],
+		    choices=["real", "complex", "complex_concat", "real_group", "real_dws"],
 		    help="Model Selection.")
 		argp.add_argument("--dataset",              default="cifar10",          type=str,
 		    choices=["cifar10", "cifar100", "svhn", "mnist", "fashion_mnist"],

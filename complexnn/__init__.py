@@ -13,6 +13,7 @@ from   .conv  import (ComplexConv,
                       ComplexConv1D,
                       ComplexConv2D,
                       ComplexConv3D,
+                      ComplexConvConcat2D,
                       WeightNorm_Conv)
 from   .dense import ComplexDense
 #from   .fft   import fft, ifft, fft2, ifft2, FFT, IFFT, FFT2, IFFT2
