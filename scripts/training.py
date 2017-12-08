@@ -225,9 +225,9 @@ def getResidualBlock(I, filter_size, featmaps, stage, block, shortcut, convArgs,
 			X_g10 = Lambda(lambda X_g1: X_g1[:, :(X_g1.shape[1] // 2), :, :])(X_g1)
 			X_g11 = Lambda(lambda X_g1: X_g1[:, (X_g1.shape[1] // 2):, :, :])(X_g1)
 			X = Concatenate(axis=1)([X_g00, X_g11, X_g01, X_g10])
-			O = Concatenate(channel_axis)([X, O])
 			if d.model == "real_group_pwc":
-				O = Conv2D(nb_fmaps2, (1, 1), name=conv_name_base + '1_pwc', **convArgs)(O)
+				X = Conv2D(nb_fmaps2, (1, 1), name=conv_name_base + '1_pwc', **convArgs)(X)
+			O = Concatenate(channel_axis)([X, O])
 		elif d.model == "complex":
 			X = ComplexConv2D(nb_fmaps2, (1, 1),
 			                  name    = conv_name_base+'1',
@@ -825,6 +825,7 @@ def train(d):
 		np.random.seed(d.seed % 2**32)
 		model = KM.load_model(chkptFilename, custom_objects={
 			"ComplexConv2D":             ComplexConv2D,
+			"ComplexConvConcat2D":       ComplexConvConcat2D,
 			"ComplexBatchNormalization": ComplexBN,
 			"GetReal":                   GetReal,
 			"GetImag":                   GetImag
