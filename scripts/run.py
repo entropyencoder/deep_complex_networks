@@ -146,7 +146,12 @@ class Train(Subcommand):
 		    help="Beta1 for Adam.")
 		optp.add_argument("--beta2",                default=0.999,              type=float,
 		    help="Beta2 for Adam.")
-	
+		optp = argp.add_argument_group("Visualization", "Display training status")
+		optp.add_argument("--tb",    default="off",     type=str,
+						  help="Write TensorBoard-readable data (\"on\", \"off\")")
+		optp.add_argument("--tbdir", default="tb_logs", type=str,
+						  help="Path to TensorBoard data relative to \'workdir\'")
+
 	@classmethod
 	def run(cls, d):
 		if not os.path.isdir(d.workdir):

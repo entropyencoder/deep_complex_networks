@@ -916,16 +916,17 @@ def train(d):
 	callbacks += [saveBestCb]
 	callbacks += [trainValHistCb]
 
-	# tensorBoardCb  = None
-	# if 'tensorflow' == K.backend():
-	# 	tensorBoardCb  = keras.callbacks.TensorBoard(
-	# 		log_dir=d.workdir+'/tb_logs', histogram_freq=1, batch_size=d.batch_size,
-	# 		write_graph=True, write_grads=True, write_images=True,
-	# 		embeddings_freq=0, embeddings_layer_names=None, embeddings_metadata=None)
+	if d.tb == "on":
+		if 'tensorflow' == K.backend():
+			tensorBoardCb  = keras.callbacks.TensorBoard(
+				log_dir=d.workdir+'/'+d.tbdir, histogram_freq=1, batch_size=d.batch_size,
+				write_graph=True, write_grads=False, write_images=True,
+				embeddings_freq=0, embeddings_layer_names=None, embeddings_metadata=None)
+			callbacks += [tensorBoardCb]
+
 	#
 	# Create training data generator
 	#
-	# callbacks += [tensorBoardCb]
 
 	datagen         = ImageDataGenerator(height_shift_range = 0.125,
 	                                     width_shift_range  = 0.125,
