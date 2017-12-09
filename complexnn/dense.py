@@ -108,9 +108,11 @@ class ComplexDense(Layer):
             data_format=data_format
         )
         if self.init_criterion == 'he':
-            s = K.sqrt(1. / fan_in)
+            # s = K.sqrt(1. / fan_in)
+            s = K.sqrt(K.constant(1) / fan_in)
         elif self.init_criterion == 'glorot':
-            s = K.sqrt(1. / (fan_in + fan_out))
+            # s = K.sqrt(1. / (fan_in + fan_out))
+            s = K.sqrt(K.constant(1) / (fan_in + fan_out))
         #rng = RandomStreams(seed=self.seed)
 
         # Equivalent initialization using amplitude phase representation:
@@ -133,7 +135,8 @@ class ComplexDense(Layer):
                 kernel_shape,
                 mean=0,
                 stddev=s,
-                dtype=dtype,
+                # dtype=dtype,
+                dtype=K.floatx(),
                 seed=self.seed
             )
         def init_w_imag(shape, dtype=None):
@@ -147,7 +150,8 @@ class ComplexDense(Layer):
                 kernel_shape,
                 mean=0,
                 stddev=s,
-                dtype=dtype,
+                # dtype=dtype,
+                dtype=K.floatx(),
                 seed=self.seed
             )
         if self.kernel_initializer in {'complex'}:
