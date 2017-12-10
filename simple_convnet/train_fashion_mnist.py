@@ -30,8 +30,8 @@ from sklearn.model_selection import train_test_split
 
 # Program parameters
 
-COMPLEX_MODE = False
-# COMPLEX_MODE = True
+# COMPLEX_MODE = False
+COMPLEX_MODE = True
 SHOW_REPORT  = False
 # EPOCH        = 50
 # EPOCH        = 100
