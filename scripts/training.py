@@ -44,6 +44,21 @@ if 'tensorflow' == K.backend():
 	config.gpu_options.visible_device_list = "0"
 	set_session(tf.Session(config=config))
 
+
+def ComplexJointReLU(I):
+	I_real = I[:, :(I.shape[1]//2), :, :]
+	I_imag = I[:, (I.shape[1]//2):, :, :]
+
+	I_cond_real = tf.logical_or(I_real>=0, I_imag>=0)
+	I_cond_imag = tf.logical_or(I_real>=0, I_imag>=0)
+
+	I_real = tf.where(I_cond_real, I_real, tf.zeros_like(I_real))
+	I_imag = tf.where(I_cond_imag, I_imag, tf.zeros_like(I_imag))
+
+	O = Concatenate(axis=1)([I_real, I_imag])
+
+	return O
+
 #
 # Residual Net Utilities
 #
@@ -95,7 +110,10 @@ def getResidualBlock(I, filter_size, featmaps, stage, block, shortcut, convArgs,
 	elif "complex" in d.model:
 		O = ComplexBN(name=bn_name_base+'_2a', **bnArgs)(I)
 
-	O = Activation(activation)(O)
+	if d.aact=="complex_joint_relu":
+		O = Lambda(ComplexJointReLU)(O)
+	else:
+		O = Activation(activation)(O)
 	
 	if shortcut == 'regular' or d.spectral_pool_scheme == "nodownsample":
 		if   d.model == "real":
@@ -177,11 +195,17 @@ def getResidualBlock(I, filter_size, featmaps, stage, block, shortcut, convArgs,
 			O = Conv2D(nb_fmaps2, (1, 1), name=conv_name_base + '2b_pwc', **convArgs)(O)
 	elif d.model == "complex":
 		O = ComplexBN(name=bn_name_base+'_2b', **bnArgs)(O)
-		O = Activation(activation)(O)
+		if d.aact == "complex_joint_relu":
+			O = Lambda(ComplexJointReLU)(O)
+		else:
+			O = Activation(activation)(O)
 		O = ComplexConv2D(nb_fmaps2, filter_size, name=conv_name_base+'2b', **convArgs)(O)
 	elif d.model == "complex_concat":
 		O = ComplexBN(name=bn_name_base+'_2b', **bnArgs)(O)
-		O = Activation(activation)(O)
+		if d.aact == "complex_joint_relu":
+			O = Lambda(ComplexJointReLU)(O)
+		else:
+			O = Activation(activation)(O)
 		O = ComplexConvConcat2D(nb_fmaps2 // 2, filter_size, name=conv_name_base+'2b', **convArgs)(O)
 	else:
 		print("Error: unknown model type")
@@ -342,7 +366,10 @@ def getResnetModel(d):
 		print("Error: unknown model type")
 		exit(-1)
 
-	O = Activation(activation)(O)
+	if d.aact=="complex_joint_relu":
+		O = Lambda(ComplexJointReLU)(O)
+	else:
+		O = Activation(activation)(O)
 	
 	#
 	# Stage 2

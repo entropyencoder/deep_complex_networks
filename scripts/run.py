@@ -89,7 +89,8 @@ class Train(Subcommand):
 		argp.add_argument("--summary",     action="store_true",
 		    help="""Print a summary of the network.""")
 		argp.add_argument("--model",                default="complex",          type=str,
-		    choices=["real", "complex", "complex_concat", "real_group", "real_dws", "real_group_pwc"],
+		    choices=["real", "real_group", "real_dws", "real_group_pwc_full", "real_group_pwc_group",
+					 "complex", "complex_concat", "complex_concat_pwc_group"],
 		    help="Model Selection.")
 		argp.add_argument("--dataset",              default="cifar10",          type=str,
 		    choices=["cifar10", "cifar100", "svhn", "mnist", "fashion_mnist"],
@@ -115,7 +116,7 @@ class Train(Subcommand):
 		    choices=["relu"],
 		    help="Activation.")
 		argp.add_argument("--aact",                 default="modrelu",          type=str,
-		    choices=["modrelu"],
+		    choices=["modrelu", "complex_joint_relu"],
 		    help="Advanced Activation.")
 		argp.add_argument("--no-validation", action="store_true",
 		    help="Do not create a separate validation set.")
