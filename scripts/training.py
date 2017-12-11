@@ -65,10 +65,10 @@ def ComplexJointReLU(I):
 
 def learnConcatRealImagBlock(I, filter_size, featmaps, stage, block, convArgs, bnArgs, d):
 	"""Learn initial imaginary component for input."""
-	
+
 	conv_name_base = 'res'+str(stage)+block+'_branch'
 	bn_name_base   = 'bn' +str(stage)+block+'_branch'
-	
+
 	O = BatchNormalization(name=bn_name_base+'2a', **bnArgs)(I)
 	O = Activation(d.act)(O)
 	O = Convolution2D(featmaps[0], filter_size,
@@ -77,7 +77,7 @@ def learnConcatRealImagBlock(I, filter_size, featmaps, stage, block, convArgs, b
 	                  kernel_initializer = 'he_normal',
 	                  use_bias           = False,
 	                  kernel_regularizer = l2(0.0001))(O)
-	
+
 	O = BatchNormalization(name=bn_name_base+'2b', **bnArgs)(O)
 	O = Activation(d.act)(O)
 	O = Convolution2D(featmaps[1], filter_size,
@@ -86,12 +86,12 @@ def learnConcatRealImagBlock(I, filter_size, featmaps, stage, block, convArgs, b
 	                  kernel_initializer = 'he_normal',
 	                  use_bias           = False,
 	                  kernel_regularizer = l2(0.0001))(O)
-	
+
 	return O
 
-def getResidualBlock(I, filter_size, featmaps, stage, block, shortcut, convArgs, bnArgs, d):
+def getResidualBlock(I, filter_size, featmaps, stage, block, shortcut, convArgs, convArgs_real, bnArgs, d):
 	"""Get residual block."""
-	
+
 	activation           = d.act
 	drop_prob            = d.dropout
 	nb_fmaps1, nb_fmaps2 = featmaps
@@ -101,8 +101,8 @@ def getResidualBlock(I, filter_size, featmaps, stage, block, shortcut, convArgs,
 		channel_axis = 1
 	else:
 		channel_axis = -1
-	
-	
+
+
 	# if   d.model == "real":
 	if "real" in d.model:
 		O = BatchNormalization(name=bn_name_base+'_2a', **bnArgs)(I)
@@ -114,14 +114,13 @@ def getResidualBlock(I, filter_size, featmaps, stage, block, shortcut, convArgs,
 		O = Lambda(ComplexJointReLU)(O)
 	else:
 		O = Activation(activation)(O)
-	
+
 	if shortcut == 'regular' or d.spectral_pool_scheme == "nodownsample":
 		if   d.model == "real":
 			O = Conv2D(nb_fmaps1, filter_size, name=conv_name_base+'2a', **convArgs)(O)
 		elif d.model == "real_dws":
 			O = SeparableConv2D(nb_fmaps1, filter_size, name=conv_name_base + '2a', **convArgs)(O)
-		# elif d.model == "real_group":
-		elif "real_group" in d.model:
+		elif (d.model == "real_group") or (d.model=="real_group_pwc_full") or (d.model=="real_group_pwc_group"):
 			O_g0 = Lambda(lambda O: O[:,:(O.shape[1]//2),:,:])(O)
 			O_g1 = Lambda(lambda O: O[:,(O.shape[1]//2):,:,:])(O)
 			O_g0 = Conv2D(nb_fmaps1 // 2, filter_size, name=conv_name_base + '2a_g0', **convArgs)(O_g0)
@@ -131,12 +130,24 @@ def getResidualBlock(I, filter_size, featmaps, stage, block, shortcut, convArgs,
 			O_g10 = Lambda(lambda O_g1: O_g1[:,:(O_g1.shape[1]//2),:,:])(O_g1)
 			O_g11 = Lambda(lambda O_g1: O_g1[:,(O_g1.shape[1]//2):,:,:])(O_g1)
 			O = Concatenate(axis=1)([O_g00, O_g11, O_g01, O_g10])	# This ordering allows permutation of odd-numbered outputs (O_g0, O_g1).
-			if d.model == "real_group_pwc":
+			if d.model == "real_group_pwc_full":
 				O = Conv2D(nb_fmaps1, (1, 1), name=conv_name_base + '2a_pwc', **convArgs)(O)
+			elif d.model == "real_group_pwc_group":
+				O_g0 = Lambda(lambda O: O[:, :(O.shape[1] // 2), :, :])(O)
+				O_g1 = Lambda(lambda O: O[:, (O.shape[1] // 2):, :, :])(O)
+				O_g0 = Conv2D(int(O.shape[1] // 2), (1, 1), name=conv_name_base + '2a_pwc_g0', **convArgs_real)(O_g0)
+				O_g1 = Conv2D(int(O.shape[1] // 2), (1, 1), name=conv_name_base + '2a_pwc_g1', **convArgs_real)(O_g1)
+				O = Concatenate(axis=1)([O_g0, O_g1])
 		elif d.model == "complex":
 			O = ComplexConv2D(nb_fmaps1, filter_size, name=conv_name_base+'2a', **convArgs)(O)
-		elif d.model == "complex_concat":
+		elif (d.model == "complex_concat") or (d.model=="complex_concat_pwc_group"):
 			O = ComplexConvConcat2D(nb_fmaps1 // 2, filter_size, name=conv_name_base + '2a', **convArgs)(O)
+			if d.model == "complex_concat_pwc_group":
+				O_g0 = Lambda(lambda O: O[:, :(O.shape[1] // 2), :, :])(O)
+				O_g1 = Lambda(lambda O: O[:, (O.shape[1] // 2):, :, :])(O)
+				O_g0 = Conv2D(int(O.shape[1] // 2), (1, 1), name=conv_name_base + '2a_pwc_g0', **convArgs_real)(O_g0)
+				O_g1 = Conv2D(int(O.shape[1] // 2), (1, 1), name=conv_name_base + '2a_pwc_g1', **convArgs_real)(O_g1)
+				O = Concatenate(axis=1)([O_g0, O_g1])
 		else:
 			print("Error: unknown model type")
 			exit(-1)
@@ -148,8 +159,7 @@ def getResidualBlock(I, filter_size, featmaps, stage, block, shortcut, convArgs,
 			O = Conv2D(nb_fmaps1, filter_size, name=conv_name_base+'2a', strides=(2, 2), **convArgs)(O)
 		elif d.model == "real_dws":
 			O = SeparableConv2D(nb_fmaps1, filter_size, name=conv_name_base + '2a', strides=(2, 2), **convArgs)(O)
-		# elif d.model == "real_group":
-		elif "real_group" in d.model:
+		elif (d.model == "real_group") or (d.model=="real_group_pwc_full") or (d.model=="real_group_pwc_group"):
 			O_g0 = Lambda(lambda O: O[:,:(O.shape[1]//2),:,:])(O)
 			O_g1 = Lambda(lambda O: O[:,(O.shape[1]//2):,:,:])(O)
 			O_g0 = Conv2D(nb_fmaps1 // 2, filter_size, name=conv_name_base + '2a_g0', strides=(2, 2), **convArgs)(O_g0)
@@ -159,12 +169,24 @@ def getResidualBlock(I, filter_size, featmaps, stage, block, shortcut, convArgs,
 			O_g10 = Lambda(lambda O_g1: O_g1[:,:(O_g1.shape[1]//2),:,:])(O_g1)
 			O_g11 = Lambda(lambda O_g1: O_g1[:,(O_g1.shape[1]//2):,:,:])(O_g1)
 			O = Concatenate(axis=1)([O_g00, O_g11, O_g01, O_g10])
-			if d.model == "real_group_pwc":
+			if d.model == "real_group_pwc_full":
 				O = Conv2D(nb_fmaps1, (1, 1), name=conv_name_base + '2a_pwc', **convArgs)(O)
+			elif d.model == "real_group_pwc_group":
+				O_g0 = Lambda(lambda O: O[:, :(O.shape[1] // 2), :, :])(O)
+				O_g1 = Lambda(lambda O: O[:, (O.shape[1] // 2):, :, :])(O)
+				O_g0 = Conv2D(int(O.shape[1] // 2), (1, 1), name=conv_name_base + '2a_pwc_g0', **convArgs_real)(O_g0)
+				O_g1 = Conv2D(int(O.shape[1] // 2), (1, 1), name=conv_name_base + '2a_pwc_g1', **convArgs_real)(O_g1)
+				O = Concatenate(axis=1)([O_g0, O_g1])
 		elif d.model == "complex":
 			O = ComplexConv2D(nb_fmaps1, filter_size, name=conv_name_base+'2a', strides=(2, 2), **convArgs)(O)
-		elif d.model == "complex_concat":
+		elif (d.model == "complex_concat") or (d.model == "complex_concat_pwc_group"):
 			O = ComplexConvConcat2D(nb_fmaps1 // 2, filter_size, name=conv_name_base+'2a', strides=(2, 2), **convArgs)(O)
+			if d.model == "complex_concat_pwc_group":
+				O_g0 = Lambda(lambda O: O[:, :(O.shape[1] // 2), :, :])(O)
+				O_g1 = Lambda(lambda O: O[:, (O.shape[1] // 2):, :, :])(O)
+				O_g0 = Conv2D(int(O.shape[1] // 2), (1, 1), name=conv_name_base + '2a_pwc_g0', **convArgs_real)(O_g0)
+				O_g1 = Conv2D(int(O.shape[1] // 2), (1, 1), name=conv_name_base + '2a_pwc_g1', **convArgs_real)(O_g1)
+				O = Concatenate(axis=1)([O_g0, O_g1])
 		else:
 			print("Error: unknown model type")
 			exit(-1)
@@ -178,8 +200,7 @@ def getResidualBlock(I, filter_size, featmaps, stage, block, shortcut, convArgs,
 		O = BatchNormalization(name=bn_name_base + '_2b', **bnArgs)(O)
 		O = Activation(activation)(O)
 		O = SeparableConv2D(nb_fmaps2, filter_size, name=conv_name_base + '2b', **convArgs)(O)
-	# elif d.model == "real_group":
-	elif "real_group" in d.model:
+	elif (d.model == "real_group") or (d.model == "real_group_pwc_full") or (d.model == "real_group_pwc_group"):
 		O = BatchNormalization(name=bn_name_base + '_2b', **bnArgs)(O)
 		O = Activation(activation)(O)
 		O_g0 = Lambda(lambda O: O[:, :(O.shape[1] // 2), :, :])(O)
@@ -191,8 +212,14 @@ def getResidualBlock(I, filter_size, featmaps, stage, block, shortcut, convArgs,
 		O_g10 = Lambda(lambda O_g1: O_g1[:, :(O_g1.shape[1] // 2), :, :])(O_g1)
 		O_g11 = Lambda(lambda O_g1: O_g1[:, (O_g1.shape[1] // 2):, :, :])(O_g1)
 		O = Concatenate(axis=1)([O_g00, O_g11, O_g01, O_g10])
-		if d.model == "real_group_pwc":
+		if d.model == "real_group_pwc_full":
 			O = Conv2D(nb_fmaps2, (1, 1), name=conv_name_base + '2b_pwc', **convArgs)(O)
+		elif d.model == "real_group_pwc_group":
+			O_g0 = Lambda(lambda O: O[:, :(O.shape[1] // 2), :, :])(O)
+			O_g1 = Lambda(lambda O: O[:, (O.shape[1] // 2):, :, :])(O)
+			O_g0 = Conv2D(int(O.shape[1] // 2), (1, 1), name=conv_name_base + '2b_pwc_g0', **convArgs_real)(O_g0)
+			O_g1 = Conv2D(int(O.shape[1] // 2), (1, 1), name=conv_name_base + '2b_pwc_g1', **convArgs_real)(O_g1)
+			O = Concatenate(axis=1)([O_g0, O_g1])
 	elif d.model == "complex":
 		O = ComplexBN(name=bn_name_base+'_2b', **bnArgs)(O)
 		if d.aact == "complex_joint_relu":
@@ -200,13 +227,20 @@ def getResidualBlock(I, filter_size, featmaps, stage, block, shortcut, convArgs,
 		else:
 			O = Activation(activation)(O)
 		O = ComplexConv2D(nb_fmaps2, filter_size, name=conv_name_base+'2b', **convArgs)(O)
-	elif d.model == "complex_concat":
+	elif (d.model == "complex_concat") or (d.model=="complex_concat_pwc_group"):
 		O = ComplexBN(name=bn_name_base+'_2b', **bnArgs)(O)
 		if d.aact == "complex_joint_relu":
 			O = Lambda(ComplexJointReLU)(O)
 		else:
 			O = Activation(activation)(O)
 		O = ComplexConvConcat2D(nb_fmaps2 // 2, filter_size, name=conv_name_base+'2b', **convArgs)(O)
+		if d.model == "complex_concat_pwc_group":
+			O_g0 = Lambda(lambda O: O[:, :(O.shape[1] // 2), :, :])(O)
+			O_g1 = Lambda(lambda O: O[:, (O.shape[1] // 2):, :, :])(O)
+			O_g0 = Conv2D(int(O.shape[1] // 2), (1, 1), name=conv_name_base + '2b_pwc_g0', **convArgs_real)(O_g0)
+			O_g1 = Conv2D(int(O.shape[1] // 2), (1, 1), name=conv_name_base + '2b_pwc_g1', **convArgs_real)(O_g1)
+			O = Concatenate(axis=1)([O_g0, O_g1])
+
 	else:
 		print("Error: unknown model type")
 		exit(-1)
@@ -230,8 +264,7 @@ def getResidualBlock(I, filter_size, featmaps, stage, block, shortcut, convArgs,
 					   (1, 1),
 					   **convArgs)(I)
 			O = Concatenate(channel_axis)([X, O])
-		# elif d.model == "real_group":
-		elif "real_group" in d.model:
+		elif (d.model == "real_group") or (d.model=="real_group_pwc_full") or (d.model=="real_group_pwc_group"):
 			I_g0 = Lambda(lambda I: I[:, :(I.shape[1] // 2), :, :])(I)
 			I_g1 = Lambda(lambda I: I[:, (I.shape[1] // 2):, :, :])(I)
 			X_g0 = Conv2D(nb_fmaps2 // 2, (1, 1),
@@ -249,8 +282,14 @@ def getResidualBlock(I, filter_size, featmaps, stage, block, shortcut, convArgs,
 			X_g10 = Lambda(lambda X_g1: X_g1[:, :(X_g1.shape[1] // 2), :, :])(X_g1)
 			X_g11 = Lambda(lambda X_g1: X_g1[:, (X_g1.shape[1] // 2):, :, :])(X_g1)
 			X = Concatenate(axis=1)([X_g00, X_g11, X_g01, X_g10])
-			if d.model == "real_group_pwc":
+			if d.model == "real_group_pwc_full":
 				X = Conv2D(nb_fmaps2, (1, 1), name=conv_name_base + '1_pwc', **convArgs)(X)
+			elif d.model == "real_group_pwc_group":
+				X_g0 = Lambda(lambda X: X[:, :(X.shape[1] // 2), :, :])(X)
+				X_g1 = Lambda(lambda X: X[:, (X.shape[1] // 2):, :, :])(X)
+				X_g0 = Conv2D(int(X.shape[1] // 2), (1, 1), name=conv_name_base + '1_pwc_g0', **convArgs_real)(X_g0)
+				X_g1 = Conv2D(int(X.shape[1] // 2), (1, 1), name=conv_name_base + '1_pwc_g1', **convArgs_real)(X_g1)
+				X = Concatenate(axis=1)([X_g0, X_g1])
 			O = Concatenate(channel_axis)([X, O])
 		elif d.model == "complex":
 			X = ComplexConv2D(nb_fmaps2, (1, 1),
@@ -261,12 +300,18 @@ def getResidualBlock(I, filter_size, featmaps, stage, block, shortcut, convArgs,
 			O_real = Concatenate(channel_axis)([GetReal()(X), GetReal()(O)])
 			O_imag = Concatenate(channel_axis)([GetImag()(X), GetImag()(O)])
 			O = Concatenate(1)([O_real, O_imag])
-		elif d.model == "complex_concat":
+		elif (d.model == "complex_concat") or (d.model == "complex_concat_pwc_group"):
 			X = ComplexConvConcat2D(nb_fmaps2 // 2, (1, 1),
 							  name=conv_name_base + '1',
 							  strides=(2, 2) if d.spectral_pool_scheme != "nodownsample" else
 							  (1, 1),
 							  **convArgs)(I)
+			if d.model == "complex_concat_pwc_group":
+				X_g0 = Lambda(lambda X: X[:, :(X.shape[1] // 2), :, :])(X)
+				X_g1 = Lambda(lambda X: X[:, (X.shape[1] // 2):, :, :])(X)
+				X_g0 = Conv2D(int(X.shape[1] // 2), (1, 1), name=conv_name_base + '1_pwc_g0', **convArgs_real)(X_g0)
+				X_g1 = Conv2D(int(X.shape[1] // 2), (1, 1), name=conv_name_base + '1_pwc_g1', **convArgs_real)(X_g1)
+				X = Concatenate(axis=1)([X_g0, X_g1])
 			O_real = Concatenate(channel_axis)([GetReal()(X), GetReal()(O)])
 			O_imag = Concatenate(channel_axis)([GetImag()(X), GetImag()(O)])
 			O      = Concatenate(      1     )([O_real,     O_imag])
@@ -278,7 +323,7 @@ def getResidualBlock(I, filter_size, featmaps, stage, block, shortcut, convArgs,
 
 def applySpectralPooling(x, d):
 	"""Perform spectral pooling on input."""
-	
+
 	if d.spectral_pool_gamma > 0 and d.spectral_pool_scheme != "none":
 		x = FFT2 ()(x)
 		x = SpectralPooling2D(gamma=(d.spectral_pool_gamma,
@@ -313,27 +358,32 @@ def getResnetModel(d):
 		"momentum":                 0.9,
 		"epsilon":                  1e-04
 	}
-	
+
+	import copy
+
+	convArgs_real=copy.deepcopy(convArgs)
+
 	# if   d.model == "real":
 	if "real" in d.model:
 		sf *= 2
 		convArgs.update({"kernel_initializer": Orthogonal(float(np.sqrt(2)))})
+		convArgs_real = convArgs
 	# elif d.model == "complex":
 	elif "complex" in d.model:
 		convArgs.update({"spectral_parametrization": d.spectral_param,
 						 "kernel_initializer": d.comp_init})
-	
-	
+
+
 	#
 	# Input Layer
 	#
-	
+
 	I = Input(shape=inputShape)
-	
+
 	#
 	# Stage 1
 	#
-	
+
 	O = learnConcatRealImagBlock(I, (1, 1), (3, 3), 0, '0', convArgs, bnArgs, d)
 	O = Concatenate(channelAxis)([I, O])
 	if d.model == "real":
@@ -342,8 +392,7 @@ def getResnetModel(d):
 	elif d.model == "real_dws":
 		O = SeparableConv2D(sf, filsize, name='conv1', **convArgs)(O)
 		O = BatchNormalization(name="bn_conv1_2a", **bnArgs)(O)
-	# elif d.model == "real_group":
-	elif "real_group" in d.model:
+	elif (d.model == "real_group") or (d.model == "real_group_pwc_full") or (d.model == "real_group_pwc_group"):
 		O_g0 = Lambda(lambda O: O[:, :(O.shape[1] // 2), :, :])(O)
 		O_g1 = Lambda(lambda O: O[:, (O.shape[1] // 2):, :, :])(O)
 		O_g0 = Conv2D(sf // 2, filsize, name='conv1_g0', **convArgs)(O_g0)
@@ -353,15 +402,27 @@ def getResnetModel(d):
 		O_g10 = Lambda(lambda O_g1: O_g1[:, :(O_g1.shape[1] // 2), :, :])(O_g1)
 		O_g11 = Lambda(lambda O_g1: O_g1[:, (O_g1.shape[1] // 2):, :, :])(O_g1)
 		O = Concatenate(axis=1)([O_g00, O_g11, O_g01, O_g10])
-		if d.model == "real_group_pwc":
+		if d.model == "real_group_pwc_full":
 			O = Conv2D(sf, (1, 1), name='conv1_pwc', **convArgs)(O)
+		elif d.model == "real_group_pwc_group":
+			O_g0 = Lambda(lambda O: O[:, :(O.shape[1] // 2), :, :])(O)
+			O_g1 = Lambda(lambda O: O[:, (O.shape[1] // 2):, :, :])(O)
+			O_g0 = Conv2D(int(O.shape[1] // 2), (1, 1), name='conv1_pwc_g0', **convArgs_real)(O_g0)
+			O_g1 = Conv2D(int(O.shape[1] // 2), (1, 1), name='conv1_pwc_g1', **convArgs_real)(O_g1)
+			O = Concatenate(axis=1)([O_g0, O_g1])
 		O = BatchNormalization(name="bn_conv1_2a", **bnArgs)(O)
 	elif d.model == "complex":
 		O = ComplexConv2D(sf, filsize, name='conv1', **convArgs)(O)
 		O = ComplexBN(name="bn_conv1_2a", **bnArgs)(O)
-	elif d.model == "complex_concat":
+	elif (d.model == "complex_concat") or (d.model=="complex_concat_pwc_group"):
 		O = ComplexConvConcat2D(sf // 2, filsize, name='conv1', **convArgs)(O)
 		O = ComplexBN(name="bn_conv1_2a", **bnArgs)(O)
+		if d.model == "complex_concat_pwc_group":
+			O_g0 = Lambda(lambda O: O[:, :(O.shape[1] // 2), :, :])(O)
+			O_g1 = Lambda(lambda O: O[:, (O.shape[1] // 2):, :, :])(O)
+			O_g0 = Conv2D(int(O.shape[1] // 2), (1, 1), name='conv1_pwc_g0', **convArgs_real)(O_g0)
+			O_g1 = Conv2D(int(O.shape[1] // 2), (1, 1), name='conv1_pwc_g1', **convArgs_real)(O_g1)
+			O = Concatenate(axis=1)([O_g0, O_g1])
 	else:
 		print("Error: unknown model type")
 		exit(-1)
@@ -370,46 +431,46 @@ def getResnetModel(d):
 		O = Lambda(ComplexJointReLU)(O)
 	else:
 		O = Activation(activation)(O)
-	
+
 	#
 	# Stage 2
 	#
-	
+
 	for i in xrange(n):
-		O = getResidualBlock(O, filsize, [sf, sf], 2, str(i), 'regular', convArgs, bnArgs, d)
+		O = getResidualBlock(O, filsize, [sf, sf], 2, str(i), 'regular', convArgs, convArgs_real, bnArgs, d)
 		if i == n//2 and d.spectral_pool_scheme == "stagemiddle":
 			O = applySpectralPooling(O, d)
-	
+
 	#
 	# Stage 3
 	#
-	
-	O = getResidualBlock(O, filsize, [sf, sf], 3, '0', 'projection', convArgs, bnArgs, d)
+
+	O = getResidualBlock(O, filsize, [sf, sf], 3, '0', 'projection', convArgs, convArgs_real, bnArgs, d)
 	if d.spectral_pool_scheme == "nodownsample":
 		O = applySpectralPooling(O, d)
-	
+
 	for i in xrange(n-1):
-		O = getResidualBlock(O, filsize, [sf*2, sf*2], 3, str(i+1), 'regular', convArgs, bnArgs, d)
+		O = getResidualBlock(O, filsize, [sf*2, sf*2], 3, str(i+1), 'regular', convArgs, convArgs_real, bnArgs, d)
 		if i == n//2 and d.spectral_pool_scheme == "stagemiddle":
 			O = applySpectralPooling(O, d)
-	
+
 	#
 	# Stage 4
 	#
-	
-	O = getResidualBlock(O, filsize, [sf*2, sf*2], 4, '0', 'projection', convArgs, bnArgs, d)
+
+	O = getResidualBlock(O, filsize, [sf*2, sf*2], 4, '0', 'projection', convArgs, convArgs_real, bnArgs, d)
 	if d.spectral_pool_scheme == "nodownsample":
 		O = applySpectralPooling(O, d)
-	
+
 	for i in xrange(n-1):
-		O = getResidualBlock(O, filsize, [sf*4, sf*4], 4, str(i+1), 'regular', convArgs, bnArgs, d)
+		O = getResidualBlock(O, filsize, [sf*4, sf*4], 4, str(i+1), 'regular', convArgs, convArgs_real, bnArgs, d)
 		if i == n//2 and d.spectral_pool_scheme == "stagemiddle":
 			O = applySpectralPooling(O, d)
-	
+
 	#
 	# Pooling
 	#
-	
+
 	if d.spectral_pool_scheme == "nodownsample":
 		O = applySpectralPooling(O, d)
 		if "mnist" in dataset:
@@ -421,17 +482,17 @@ def getResnetModel(d):
 			O = AveragePooling2D(pool_size=(7, 7))(O)
 		else:
 			O = AveragePooling2D(pool_size=(8, 8))(O)
-	
+
 	#
 	# Flatten
 	#
-	
+
 	O = Flatten()(O)
-	
+
 	#
 	# Dense
 	#
-	
+
 	if   dataset == 'cifar10':
 		O = Dense(10,  activation='softmax', kernel_regularizer=l2(0.0001))(O)
 	elif dataset == 'cifar100':
@@ -444,7 +505,7 @@ def getResnetModel(d):
 		O = Dense(10,  activation='softmax', kernel_regularizer=l2(0.0001))(O)
 	else:
 		raise ValueError("Unknown dataset "+d.dataset)
-	
+
 	# Return the model
 	return Model(I, O)
 
@@ -577,14 +638,14 @@ class TestErrorCallback(Callback):
 
 	def on_epoch_end(self, epoch, logs={}):
 		x, y = self.test_data
-		
+
 		L.getLogger("train").info("Epoch {:5d} Evaluating on test set...".format(epoch+1))
 		test_loss, test_acc = self.model.evaluate(x, y, verbose=0)
 		L.getLogger("train").info("                                      complete.")
-		
+
 		self.loss_history.append(test_loss)
 		self.acc_history.append(test_acc)
-		
+
 		L.getLogger("train").info("Epoch {:5d} train_loss: {}, train_acc: {}, val_loss: {}, val_acc: {}, test_loss: {}, test_acc: {}".format(
 		                          epoch+1,
 		                          logs["loss"],     logs["acc"],
@@ -620,7 +681,7 @@ class SaveLastModel(Callback):
 			os.mkdir(self.chkptsdir)
 		self.period_of_epochs = period
 		self.linkFilename     = os.path.join(self.chkptsdir, "ModelChkpt.hdf5")
-	
+
 	def on_epoch_end(self, epoch, logs={}):
 		if (epoch + 1) % self.period_of_epochs == 0:
 			# Filenames
@@ -628,23 +689,23 @@ class SaveLastModel(Callback):
 			baseYAMLFilename = "ModelChkpt{:06d}.yaml".format(epoch+1)
 			hdf5Filename     = os.path.join(self.chkptsdir, baseHDF5Filename)
 			yamlFilename     = os.path.join(self.chkptsdir, baseYAMLFilename)
-			
+
 			# YAML
 			yamlModel = self.model.to_yaml()
 			with open(yamlFilename, "w") as yamlFile:
 				yamlFile.write(yamlModel)
-			
+
 			# HDF5
 			KM.save_model(self.model, hdf5Filename)
 			with H.File(hdf5Filename, "r+") as f:
 				f.require_dataset("initialEpoch", (), "uint64", True)[...] = int(epoch+1)
 				f.flush()
-			
+
 			# Symlink to new HDF5 file, then atomically rename and replace.
 			os.symlink(baseHDF5Filename, self.linkFilename+".rename")
 			os.rename (self.linkFilename+".rename",
 			           self.linkFilename)
-			
+
 			# Print
 			L.getLogger("train").info("Saved checkpoint to {:s} at epoch {:5d}".format(hdf5Filename, epoch+1))
 
@@ -660,29 +721,29 @@ class SaveBestModel(Callback):
 			os.mkdir(self.bestdir)
 		self.best_acc  = 0
 		self.best_loss = +np.inf
-	
+
 	def on_epoch_end(self, epoch, logs={}):
 		val_loss = logs['loss']
 		val_acc  = logs['acc']
 		if val_acc > self.best_acc:
 			self.best_acc  = val_acc
 			self.best_loss = val_loss
-			
+
 			# Filenames
 			hdf5Filename = os.path.join(self.bestdir, "Bestmodel_{:06d}_{:.4f}_{:.4f}.hdf5".format(epoch+1, val_acc, val_loss))
 			yamlFilename = os.path.join(self.bestdir, "Bestmodel_{:06d}_{:.4f}_{:.4f}.yaml".format(epoch+1, val_acc, val_loss))
-			
+
 			# YAML
 			yamlModel = self.model.to_yaml()
 			with open(yamlFilename, "w") as yamlFile:
 				yamlFile.write(yamlModel)
-			
+
 			# HDF5
 			KM.save_model(self.model, hdf5Filename)
 			with H.File(hdf5Filename, "r+") as f:
 				f.require_dataset("initialEpoch", (), "uint64", True)[...] = int(epoch+1)
 				f.flush()
-			
+
 			# Print
 			L.getLogger("train").info("Saved best model to {:s} at epoch {:5d}".format(hdf5Filename, epoch+1))
 
@@ -729,11 +790,11 @@ def train(d):
 	#
 	# Log important data about how we were invoked.
 	#
-	
+
 	L.getLogger("entry").info("INVOCATION:     "+" ".join(sys.argv))
 	L.getLogger("entry").info("HOSTNAME:       "+socket.gethostname())
 	L.getLogger("entry").info("PWD:            "+os.getcwd())
-	
+
 	summary  = "\n"
 	#summary += "Environment:\n"
 	#summary += summarizeEnvvar("THEANO_FLAGS")+"\n"
@@ -765,11 +826,11 @@ def train(d):
 	else:
 		summary += "Momentum:                "+str(d.momentum)+"\n"
 	L.getLogger("entry").info(summary[:-1])
-	
+
 	#
 	# Load dataset
 	#
-	
+
 	L.getLogger("entry").info("Loading dataset {:s} ...".format(d.dataset))
 	np.random.seed(d.seed % 2**32)
 	if   d.dataset == 'cifar10':
@@ -803,31 +864,31 @@ def train(d):
 	#
 	# Compute and Shuffle Training/Validation/Test Split
 	#
-	
+
 	shuf_inds  = np.arange(len(y_train))
 	np.random.seed(0xDEADBEEF)
 	np.random.shuffle(shuf_inds)
 	train_inds = shuf_inds[:n_train]
 	val_inds   = shuf_inds[n_train:]
-	
+
 	X_train    = X_train.astype('float32')/255.0
 	X_test     = X_test .astype('float32')/255.0
-	
+
 	X_train_split = X_train[train_inds]
 	X_val_split   = X_train[val_inds  ]
 	y_train_split = y_train[train_inds]
 	y_val_split   = y_train[val_inds  ]
-	
+
 	pixel_mean = np.mean(X_train_split, axis=0)
-	
+
 	X_train    = X_train_split.astype(np.float32) - pixel_mean
 	X_val      = X_val_split  .astype(np.float32) - pixel_mean
 	X_test     = X_test       .astype(np.float32) - pixel_mean
-	
+
 	Y_train    = to_categorical(y_train_split, nb_classes)
 	Y_val      = to_categorical(y_val_split,   nb_classes)
 	Y_test     = to_categorical(y_test,        nb_classes)
-	
+
 	if d.no_validation:
 	    X_train = np.concatenate([X_train, X_val], axis=0)
 	    Y_train = np.concatenate([Y_train, Y_val], axis=0)
@@ -836,13 +897,13 @@ def train(d):
 	L.getLogger("entry").info("Validation set shape: "+str(X_val.shape))
 	L.getLogger("entry").info("Test       set shape: "+str(X_test.shape))
 	L.getLogger("entry").info("Loaded  dataset {:s}.".format(d.dataset))
-	
-	
-	
+
+
+
 	#
 	# Initial Entry or Resume?
 	#
-	
+
 	initialEpoch  = 0
 	chkptFilename = os.path.join(d.workdir, "chkpts", "ModelChkpt.hdf5")
 	isResuming    = os.path.isfile(chkptFilename)
@@ -858,7 +919,7 @@ def train(d):
 			"GetImag":                   GetImag
 		})
 		L.getLogger("entry").info("... reloading complete.")
-		
+
 		with H.File(chkptFilename, "r") as f:
 			initialEpoch = int(f["initialEpoch"][...])
 		L.getLogger("entry").info("Training will restart at epoch {:5d}.".format(initialEpoch+1))
@@ -892,16 +953,16 @@ def train(d):
 			              clipnorm = d.clipnorm)
 		else:
 			raise ValueError("Unknown optimizer "+d.optimizer)
-		
+
 		# Compile the model with that optimizer.
 		L.getLogger("entry").info("Compilation Started.")
 		model.compile(opt, 'categorical_crossentropy', metrics=['accuracy'])
 		model.summary()
-	
+
 	#
 	# Precompile several backend functions
 	#
-	
+
 	if d.summary:
 		model.summary()
 	L.getLogger("entry").info("# of Parameters:              {:10d}".format(model.count_params()))
@@ -921,11 +982,11 @@ def train(d):
 	t += time.time()
 	L.getLogger("entry").info("                              {:10.3f}s".format(t))
 	L.getLogger("entry").info("Compilation Ended.")
-	
+
 	#
 	# Create Callbacks
 	#
-	
+
 	newLineCb      = PrintNewlineAfterEpochCallback()
 	lrSchedCb      = LearningRateScheduler(schedule)
 	testErrCb      = TestErrorCallback((X_test, Y_test))
@@ -958,16 +1019,16 @@ def train(d):
 	datagen         = ImageDataGenerator(height_shift_range = 0.125,
 	                                     width_shift_range  = 0.125,
 	                                     horizontal_flip    = True)
-	
+
 	#
 	# Enter training loop.
 	#
-	
+
 	L               .getLogger("entry").info("**********************************************")
 	if isResuming: L.getLogger("entry").info("*** Reentering Training Loop @ Epoch {:5d} ***".format(initialEpoch+1))
 	else:          L.getLogger("entry").info("***  Entering Training Loop  @ First Epoch ***")
 	L               .getLogger("entry").info("**********************************************")
-	
+
 	model.fit_generator(generator       = datagen.flow(X_train, Y_train, batch_size=d.batch_size),
 	                    steps_per_epoch = (len(X_train)+d.batch_size-1) // d.batch_size,
 	                    epochs          = d.num_epochs,
@@ -975,18 +1036,18 @@ def train(d):
 	                    callbacks       = callbacks,
 	                    validation_data = (X_val, Y_val),
 	                    initial_epoch   = initialEpoch)
-	
+
 	#
 	# Dump histories.
 	#
-	
+
 	np.savetxt(os.path.join(d.workdir, 'test_loss.txt'),  np.asarray(testErrCb.loss_history))
 	np.savetxt(os.path.join(d.workdir, 'test_acc.txt'),   np.asarray(testErrCb.acc_history))
 	np.savetxt(os.path.join(d.workdir, 'train_loss.txt'), np.asarray(trainValHistCb.train_loss))
 	np.savetxt(os.path.join(d.workdir, 'train_acc.txt'),  np.asarray(trainValHistCb.train_acc))
 	np.savetxt(os.path.join(d.workdir, 'val_loss.txt'),   np.asarray(trainValHistCb.val_loss))
 	np.savetxt(os.path.join(d.workdir, 'val_acc.txt'),    np.asarray(trainValHistCb.val_acc))
-	
+
 	# CIFAR-10:
 	# - Baseline
 	# - Baseline but with complex parametrization
